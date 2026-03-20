@@ -1,0 +1,108 @@
+:root {
+  --veridata-bg: #fff8fb;
+  --veridata-bg-soft: #fff1f7;
+  --veridata-bg-panel: rgba(255, 255, 255, 0.86);
+  --veridata-bg-panel-strong: rgba(255, 255, 255, 0.94);
+  --veridata-border: rgba(228, 154, 190, 0.24);
+  --veridata-border-strong: rgba(214, 115, 165, 0.36);
+  --veridata-accent: #e57eaf;
+  --veridata-accent-strong: #c95d93;
+  --veridata-accent-soft: #f7ccdf;
+  --veridata-text: #4f3243;
+  --veridata-muted: #7b6070;
+  --veridata-muted-strong: #a28394;
+  --veridata-shadow: 0 24px 54px rgba(198, 141, 170, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(243, 183, 209, 0.46), transparent 22%),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.88), transparent 30%),
+    linear-gradient(180deg, #fffafb 0%, #fff3f8 54%, #ffeef5 100%);
+  color: var(--veridata-text);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+/* Sidebar */
+
+.sidebar {
+  width: 260px;
+  min-height: 100svh;
+  background: var(--veridata-bg-panel-strong);
+  border-right: 1px solid var(--veridata-border);
+  padding: 24px;
+}
+
+/* Navbar */
+
+.navbar {
+  background: var(--veridata-bg-panel-strong);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 24px;
+  border: 1px solid var(--veridata-border);
+}
+
+/* Cards */
+
+.card {
+  background: var(--veridata-bg-panel-strong);
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid var(--veridata-border);
+  box-shadow: var(--veridata-shadow);
+}
+
+/* Dashboard grid */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+/* Dataset list */
+
+.dataset-card {
+  background: var(--veridata-bg-panel-strong);
+  border-radius: 16px;
+  padding: 18px;
+  border: 1px solid var(--veridata-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Pink badge */
+
+.badge {
+  background: var(--veridata-accent);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+}

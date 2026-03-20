@@ -1,0 +1,38 @@
+{
+  "name": "veridata",
+  "version": "1.0.0",
+  "description": "A decentralized application for uploading AI datasets to Shelby decentralized blob storage and registering intellectual property using Story Protocol.",
+  "main": "src/app.ts",
+  "scripts": {
+    "start": "ts-node src/app.ts",
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@shelby-labs/sdk": "^1.0.0",
+    "@shelby-protocol/sdk": "^1.0.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.0.0",
+    "jest": "^27.0.0",
+    "dotenv": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^27.0.0",
+    "@types/node": "^16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/veridata.git"
+  },
+  "keywords": [
+    "decentralized",
+    "application",
+    "AI",
+    "datasets",
+    "Shelby",
+    "Story Protocol",
+    "Aptos"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

@@ -9,12 +9,26 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "@aptos-labs/ts-sdk": "^5.2.1",
+    "@aptos-labs/wallet-adapter-core": "^8.5.0",
+    "@aptos-labs/wallet-adapter-react": "^8.3.1",
+    "@shelby-protocol/react": "^1.0.4",
+    "@shelby-protocol/sdk": "^0.2.4",
+    "@tanstack/react-query": "^5.91.0",
+    "@telegram-apps/bridge": "^1.9.2",
+    "@wallet-standard/core": "^1.1.1",
+    "fs-extra": "^11.3.4",
+    "glob": "^13.0.6",
+    "got": "^11.8.6",
+    "lucide-react": "^0.577.0",
+    "next": "^16.1.6",
+    "node-fetch": "^3.3.2",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

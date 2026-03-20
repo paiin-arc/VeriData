@@ -1,0 +1,68 @@
+.card {
+  position: relative;
+  overflow: hidden;
+  min-height: 136px;
+  padding: 18px;
+  border: 1px solid var(--board-panel-border, var(--veridata-border));
+  border-radius: 12px;
+  background: var(--board-panel-bg, linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)));
+  box-shadow: var(--board-shadow, var(--veridata-shadow));
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: auto -35px -45px auto;
+  width: 140px;
+  height: 140px;
+  border-radius: 999px;
+  background: radial-gradient(circle, var(--stat-accent), transparent 72%);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  color: var(--board-muted, var(--veridata-muted));
+  font-size: 0.84rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--board-panel-border, var(--veridata-border));
+  background: var(--board-panel-soft, rgba(255, 255, 255, 0.05));
+  color: var(--board-accent, var(--veridata-accent-soft));
+  font-size: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.value {
+  margin-top: 20px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.06em;
+  color: var(--board-text, #ffffff);
+}
+
+.description {
+  margin: 12px 0 0;
+  max-width: 18rem;
+  color: var(--board-muted, var(--veridata-muted));
+  line-height: 1.55;
+  font-size: 0.92rem;
+}

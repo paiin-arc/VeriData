@@ -1,0 +1,103 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.connectedState {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.primaryButton {
+  background: linear-gradient(135deg, #f3a7cc 0%, #e476af 58%, #cc5a92 100%);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px rgba(229, 126, 175, 0.12),
+    0 14px 26px rgba(203, 90, 146, 0.2);
+}
+
+.primaryButton:hover,
+.secondaryButton:hover {
+  transform: translateY(-1px);
+}
+
+.primaryButton:hover {
+  box-shadow:
+    0 0 0 1px rgba(229, 126, 175, 0.18),
+    0 18px 28px rgba(203, 90, 146, 0.24),
+    0 0 16px rgba(229, 126, 175, 0.12);
+}
+
+.secondaryButton {
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--board-text, var(--veridata-text));
+  border-color: var(--board-panel-border, var(--veridata-border));
+}
+
+.secondaryButton:hover {
+  border-color: var(--board-panel-border-strong, var(--veridata-border-strong));
+  box-shadow: 0 0 16px rgba(229, 126, 175, 0.1);
+}
+
+.addressPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--board-panel-border, var(--veridata-border));
+  color: var(--board-text, var(--veridata-text));
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.error {
+  margin: 0;
+  max-width: 18rem;
+  color: #ab255f;
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .wrap {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .connectedState {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .addressPill {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .error {
+    max-width: none;
+    text-align: left;
+  }
+}
