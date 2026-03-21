@@ -1,12 +1,11 @@
 .appShell {
   display: grid;
-  grid-template-columns: minmax(288px, 320px) minmax(0, 1fr);
+  grid-template-columns: 102px minmax(0, 1fr);
   min-height: 100svh;
   height: 100svh;
   background:
-    radial-gradient(circle at top left, rgba(244, 180, 209, 0.42), transparent 24%),
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.9), transparent 30%),
-    linear-gradient(180deg, #fffafb 0%, #fff4f8 48%, #ffeff5 100%);
+    radial-gradient(circle at top center, rgba(223, 232, 243, 0.42), transparent 24%),
+    linear-gradient(180deg, #f8f8f3 0%, #f3f4ee 100%);
 }
 
 .main {
@@ -18,7 +17,7 @@
 
 .mainInner {
   min-height: 100%;
-  padding: clamp(18px, 3vw, 34px);
+  padding: 20px;
 }
 
 @media (max-width: 980px) {
@@ -28,6 +27,6 @@
   }
 
   .mainInner {
-    padding: 0 14px 24px;
+    padding: 14px;
   }
 }

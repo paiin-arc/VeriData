@@ -33,7 +33,7 @@ export default function WalletButton() {
     <div className={styles.wrap}>
       {!connected && (
         <button onClick={connectWallet} className={styles.primaryButton}>
-          Connect Wallet
+          Sign in
         </button>
       )}
 
@@ -41,7 +41,7 @@ export default function WalletButton() {
         <div className={styles.connectedState}>
           <span className={styles.addressPill}>{shortenAddress(address)}</span>
           <button onClick={disconnect} className={styles.secondaryButton}>
-            Disconnect
+            Sign out
           </button>
         </div>
       ) : null}

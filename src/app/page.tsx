@@ -9,7 +9,11 @@ import {
   getShelbyBlobExplorerUrl,
   Order_By
 } from "@shelby-protocol/sdk/browser"
+import { ArrowRight, Command, Search } from "lucide-react"
+import { useAccount } from "wagmi"
 
+import StoryProtocolPanel from "@/components/StoryProtocolPanel"
+import StoryWalletButton from "@/components/StoryWalletButton"
 import UploadDataset from "@/components/UploadDataset"
 import WalletButton from "@/components/WalletButton"
 import WalletTransactions from "@/components/WalletTransactions"
@@ -21,11 +25,18 @@ type BlobReference = {
   name: string
 }
 
+type WorkspaceView =
+  | "overview"
+  | "search"
+  | "details"
+  | "upload"
+  | "registry"
+  | "activity"
+
 type DashboardTab = {
   label: string
-  href: string
-  active?: boolean
-  external?: boolean
+  view: WorkspaceView
+  hash: string
 }
 
 type SparklineProps = {
@@ -33,20 +44,15 @@ type SparklineProps = {
   color: string
 }
 
-const primaryTabs: readonly DashboardTab[] = [
-  { label: "Dashboard", href: "#overview", active: true },
-  { label: "Registry", href: "#dataset-registry" },
-  { label: "Search", href: "#search" },
-  { label: "Upload", href: "#upload-dataset" },
-  { label: "Activity", href: "#activity" }
-] as const
+type MetricInsight = "count" | "storage" | "written" | "expiring"
 
-const secondaryTabs: readonly DashboardTab[] = [
-  { label: "Overview", href: "#overview", active: true },
-  { label: "Storage", href: "#dataset-registry" },
-  { label: "Ownership", href: "#dataset-details" },
-  { label: "Wallet", href: "#activity" },
-  { label: "Explorer", href: "https://explorer.shelby.xyz", external: true }
+const primaryTabs: readonly DashboardTab[] = [
+  { label: "Overview", view: "overview", hash: "#overview" },
+  { label: "Search", view: "search", hash: "#search" },
+  { label: "Details", view: "details", hash: "#dataset-details" },
+  { label: "Upload", view: "upload", hash: "#upload-dataset" },
+  { label: "Registry", view: "registry", hash: "#dataset-registry" },
+  { label: "Activity", view: "activity", hash: "#activity" }
 ] as const
 
 function formatFileSize(bytes: number): string {
@@ -72,7 +78,14 @@ function formatMerkleRoot(value: Uint8Array): string {
 }
 
 function formatMicrosTimestamp(value: number): string {
-  return new Date(value / 1000).toLocaleString()
+  const date = new Date(Math.floor(value / 1000))
+
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date"
+  }
+
+  const isoValue = date.toISOString()
+  return `${isoValue.slice(0, 10)} ${isoValue.slice(11, 19)} UTC`
 }
 
 function formatBlobEncoding(encoding: BlobMetadata["encoding"]): string {
@@ -192,17 +205,42 @@ function Sparkline({ values, color }: SparklineProps) {
   )
 }
 
+function getViewFromHash(hash: string): WorkspaceView {
+  switch (hash) {
+    case "#search":
+      return "search"
+    case "#dataset-details":
+      return "details"
+    case "#upload-dataset":
+      return "upload"
+    case "#dataset-registry":
+      return "registry"
+    case "#activity":
+      return "activity"
+    case "#overview":
+    default:
+      return "overview"
+  }
+}
+
 export default function Home() {
   const { account } = useWallet()
+  const { address: storyAddress } = useAccount()
   const shelbyClient = useShelbyClient()
   const owner = account?.address?.toString()
 
+  const [hasMounted, setHasMounted] = useState(false)
+  const [currentTimeMicros, setCurrentTimeMicros] = useState(0)
+  const [activeView, setActiveView] = useState<WorkspaceView>("overview")
+  const [selectedInsight, setSelectedInsight] = useState<MetricInsight>("count")
   const [searchInput, setSearchInput] = useState("")
   const [searchResults, setSearchResults] = useState<BlobMetadata[]>([])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [submittedQuery, setSubmittedQuery] = useState("")
   const [selectedBlobReference, setSelectedBlobReference] = useState<BlobReference | null>(null)
+  const hydratedOwner = hasMounted ? owner : undefined
+  const hydratedStoryAddress = hasMounted ? storyAddress : undefined
 
   const {
     data: blobs = [],
@@ -211,28 +249,39 @@ export default function Home() {
     error: accountBlobsError,
     refetch
   } = useAccountBlobs({
-    account: owner ?? "0x0",
-    enabled: Boolean(owner),
+    account: hydratedOwner ?? "0x0",
+    enabled: Boolean(hydratedOwner),
     pagination: {
       limit: 100
     },
-    refetchInterval: owner ? 15_000 : false
+    refetchInterval: hydratedOwner ? 15_000 : false
   })
 
   const registryBlobs = [...blobs]
     .filter((blob) => !blob.isDeleted)
     .sort((left, right) => right.creationMicros - left.creationMicros)
 
-  const registrySignature = registryBlobs
-    .map((blob) => getBlobKey(getBlobReference(blob)))
-    .join("|")
+  useEffect(() => {
+    setHasMounted(true)
+    setCurrentTimeMicros(Date.now() * 1000)
 
-  const searchSignature = searchResults
-    .map((blob) => getBlobKey(getBlobReference(blob)))
-    .join("|")
+    const syncActiveView = () => {
+      setActiveView(getViewFromHash(window.location.hash))
+    }
+
+    syncActiveView()
+    window.addEventListener("hashchange", syncActiveView)
+
+    return () => {
+      window.removeEventListener("hashchange", syncActiveView)
+    }
+  }, [])
 
   useEffect(() => {
-    const availableBlobs = [...searchResults, ...registryBlobs]
+    const availableRegistryBlobs = [...blobs]
+      .filter((blob) => !blob.isDeleted)
+      .sort((left, right) => right.creationMicros - left.creationMicros)
+    const availableBlobs = [...searchResults, ...availableRegistryBlobs]
 
     setSelectedBlobReference((currentReference) => {
       if (currentReference) {
@@ -249,7 +298,7 @@ export default function Home() {
       const nextBlob = availableBlobs[0]
       return nextBlob ? getBlobReference(nextBlob) : null
     })
-  }, [registrySignature, searchSignature])
+  }, [blobs, searchResults])
 
   const selectedRegistryBlob = [...searchResults, ...registryBlobs].find((blob) => (
     selectedBlobReference &&
@@ -277,10 +326,32 @@ export default function Home() {
       )
     : null
 
+  const selectedDataset = activeMetadata
+    ? {
+        name: activeMetadata.blobNameSuffix,
+        owner: activeMetadata.owner.toString(),
+        sizeBytes: activeMetadata.size,
+        merkleRoot: formatMerkleRoot(activeMetadata.blobMerkleRoot),
+        shelbyExplorerUrl: explorerUrl ?? "",
+        status: getBlobStatus(activeMetadata)
+      }
+    : null
+
+  const setView = (view: WorkspaceView) => {
+    setActiveView(view)
+
+    const tab = primaryTabs.find((item) => item.view === view)
+
+    if (tab) {
+      window.history.replaceState(null, "", tab.hash)
+      window.dispatchEvent(new Event("veridatahashchange"))
+    }
+  }
+
   const totalBytes = registryBlobs.reduce((sum, blob) => sum + blob.size, 0)
   const writtenCount = registryBlobs.filter((blob) => blob.isWritten).length
   const expiringSoonCount = registryBlobs.filter((blob) => {
-    const sevenDaysFromNowMicros = Date.now() * 1000 + 7 * 24 * 60 * 60 * 1_000_000
+    const sevenDaysFromNowMicros = currentTimeMicros + 7 * 24 * 60 * 60 * 1_000_000
     return blob.expirationMicros <= sevenDaysFromNowMicros
   }).length
   const uniqueOwners = new Set(registryBlobs.map((blob) => blob.owner.toString())).size
@@ -295,7 +366,7 @@ export default function Home() {
 
   const expirySeries = registryBlobs.length > 0
     ? registryBlobs.slice(0, 10).reverse().map((blob) => {
-        const days = (blob.expirationMicros - Date.now() * 1000) / (24 * 60 * 60 * 1_000_000)
+        const days = (blob.expirationMicros - currentTimeMicros) / (24 * 60 * 60 * 1_000_000)
         return Math.max(Math.min(days, 30), 0)
       })
     : [24, 22, 21, 18, 16, 15, 14, 12, 9, 7]
@@ -303,6 +374,69 @@ export default function Home() {
   const searchSeries = searchResults.length > 0
     ? searchResults.slice(0, 10).reverse().map((blob) => Math.max(blob.size / (1024 * 1024), 0.2))
     : [0.8, 1.1, 1, 1.4, 1.2, 1.6, 1.8, 1.7, 2, 1.9]
+
+  const selectedInsightContent = {
+    count: {
+      title: "Dataset count",
+      summary: "See how many datasets are currently active in your Shelby space.",
+      value: `${registryBlobs.length}`,
+      helper: "Use Registry to open any item and view only that dataset's full details."
+    },
+    storage: {
+      title: "Storage reserved",
+      summary: "This helps students understand how much space all uploaded datasets are using together.",
+      value: formatFileSize(totalBytes),
+      helper: "Large files are easier to review from Details after selecting one item."
+    },
+    written: {
+      title: "Written datasets",
+      summary: "These files have been acknowledged by Shelby storage providers.",
+      value: `${writtenCount}`,
+      helper: "Open Details to inspect the selected file's owner, size, timestamps, and hash."
+    },
+    expiring: {
+      title: "Expiring soon",
+      summary: "These datasets will need attention soon so they do not lapse unexpectedly.",
+      value: `${expiringSoonCount}`,
+      helper: `${uniqueOwners} owner${uniqueOwners === 1 ? "" : "s"} currently represented in the registry.`
+    }
+  } satisfies Record<MetricInsight, { title: string; summary: string; value: string; helper: string }>
+
+  const featuredCollections = [
+    {
+      eyebrow: registryBlobs[0] ? "Registry spotlight" : "Featured collection",
+      title: registryBlobs[0]?.blobNameSuffix ?? "Shelby Registry",
+      description: registryBlobs[0]
+        ? `${shortenValue(registryBlobs[0].owner.toString(), 8, 6)} • ${formatFileSize(registryBlobs[0].size)} • ${getBlobStatus(registryBlobs[0])}`
+        : "Browse datasets, ownership details, and commitments from one clean registry view.",
+      meta: registryBlobs.length > 0 ? `${registryBlobs.length} live dataset${registryBlobs.length === 1 ? "" : "s"}` : "Connect a wallet to load assets",
+      view: "registry" as const,
+      toneClassName: styles.collectionSky,
+      actionLabel: "Open registry"
+    },
+    {
+      eyebrow: selectedDataset ? "Licensing ready" : "Story licensing",
+      title: selectedDataset?.name ?? "Register On Story",
+      description: selectedDataset
+        ? `${shortenValue(selectedDataset.owner, 8, 6)} • ${selectedDataset.status} • ${formatFileSize(selectedDataset.sizeBytes)}`
+        : "Turn a Shelby dataset into a licensable Story IP asset with clear owner controls.",
+      meta: hydratedStoryAddress ? shortenValue(hydratedStoryAddress, 8, 6) : "Connect Story wallet",
+      view: selectedDataset ? "details" : "upload",
+      toneClassName: styles.collectionGold,
+      actionLabel: selectedDataset ? "Open details" : "Prepare upload"
+    },
+    {
+      eyebrow: hydratedOwner ? "Wallet activity" : "Discovery",
+      title: hydratedOwner ? "Recent Aptos Transactions" : "Search Assets",
+      description: hydratedOwner
+        ? "Track gas usage, transaction hashes, and recent network activity from the connected owner wallet."
+        : "Search by wallet, blob name, or merkle root to jump straight into the matching dataset.",
+      meta: submittedQuery ? `Latest query: ${submittedQuery}` : hydratedOwner ? shortenValue(hydratedOwner, 8, 6) : "No wallet connected",
+      view: hydratedOwner ? "activity" : "search",
+      toneClassName: styles.collectionCrimson,
+      actionLabel: hydratedOwner ? "View activity" : "Search now"
+    }
+  ] as const
 
   const handleDatasetSearch = async () => {
     const query = searchInput.trim()
@@ -339,6 +473,7 @@ export default function Home() {
 
       if (uniqueBlobs[0]) {
         setSelectedBlobReference(getBlobReference(uniqueBlobs[0]))
+        setView("details")
       }
     } catch (error) {
       const message =
@@ -354,60 +489,129 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <div className={styles.chrome}>
-        <div className={styles.primaryTabs}>
-          {primaryTabs.map((tab) => (
-            <a
-              key={tab.label}
-              href={tab.href}
-              className={`${styles.primaryTab} ${tab.active ? styles.primaryTabActive : ""}`}
-            >
-              {tab.label}
-            </a>
-          ))}
+        <header className={styles.topbar}>
+          <form
+            className={styles.commandBar}
+            onSubmit={(event) => {
+              event.preventDefault()
+              setView("search")
+              void handleDatasetSearch()
+            }}
+          >
+            <Search size={15} className={styles.commandIcon} />
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search for assets using wallet, title, or merkle root"
+              className={styles.commandInput}
+              aria-label="Search for assets"
+            />
+            <button type="submit" className={styles.commandShortcut}>
+              <Command size={12} />
+              <span>K</span>
+            </button>
+          </form>
 
           <div className={styles.primaryActions}>
+            <StoryWalletButton />
             <WalletButton />
           </div>
-        </div>
-
-        <div className={styles.secondaryTabs}>
-          {secondaryTabs.map((tab) => (
-            <a
-              key={tab.label}
-              href={tab.href}
-              target={tab.external ? "_blank" : undefined}
-              rel={tab.external ? "noreferrer" : undefined}
-              className={`${styles.secondaryTab} ${tab.active ? styles.secondaryTabActive : ""}`}
-            >
-              {tab.label}
-            </a>
-          ))}
-        </div>
+        </header>
 
         <div id="overview" className={styles.content}>
           <section className={styles.summaryBar}>
-            <div>
-              <p className={styles.kicker}>Storage Overview</p>
-              <h1 className={styles.title}>VeriData Shelby Console</h1>
+            <div className={styles.heroCopy}>
+              <div className={styles.heroBadgeRow}>
+                <span className={styles.heroBadge}>Story x Shelby</span>
+                <span className={styles.heroBadge}>AI-ready provenance</span>
+              </div>
+
+              <p className={styles.kicker}>Intelligent Rights Workspace</p>
+              <h1 className={styles.title}>Register, track, and license data in the age of AI</h1>
               <p className={styles.subtitle}>
-                A cleaner storage dashboard for dataset registration, search, ownership details, and wallet activity.
+                Register your datasets on Shelby, trace ownership, and unlock Story licensing without losing the clarity of a modern marketplace interface.
               </p>
+
+              <div className={styles.heroActions}>
+                <button
+                  type="button"
+                  className={styles.heroPrimaryButton}
+                  onClick={() => setView(selectedDataset ? "details" : "upload")}
+                >
+                  Register on Story
+                </button>
+                <button
+                  type="button"
+                  className={styles.heroSecondaryButton}
+                  onClick={() => setView("registry")}
+                >
+                  Browse registry
+                </button>
+              </div>
             </div>
 
             <div className={styles.summaryMeta}>
               <div className={styles.metaItem}>
                 <span className={styles.metaLabel}>Connected wallet</span>
-                <span className={styles.metaValue}>{owner ? shortenValue(owner, 8, 6) : "Not connected"}</span>
+                <span className={styles.metaValue}>{hydratedOwner ? shortenValue(hydratedOwner, 8, 6) : "Not connected"}</span>
               </div>
               <div className={styles.metaItem}>
                 <span className={styles.metaLabel}>Selected dataset</span>
                 <span className={styles.metaValue}>{activeMetadata ? activeMetadata.blobNameSuffix : "None"}</span>
               </div>
+              <div className={styles.metaItem}>
+                <span className={styles.metaLabel}>Story wallet</span>
+                <span className={styles.metaValue}>{hydratedStoryAddress ? shortenValue(hydratedStoryAddress, 8, 6) : "Not connected"}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className={styles.collectionsSection}>
+            <div className={styles.collectionsHeader}>
+              <div>
+                <p className={styles.panelKicker}>Featured Collections</p>
+                <h2 className={styles.panelTitle}>Curated paths into your Shelby and Story workspace</h2>
+              </div>
+              <p className={styles.collectionsCopy}>
+                Each card opens a live part of the product, so the landing experience stays visual while still driving into real data and actions.
+              </p>
+            </div>
+
+            <div className={styles.collectionGrid}>
+              {featuredCollections.map((collection) => (
+                <button
+                  key={collection.title}
+                  type="button"
+                  onClick={() => setView(collection.view)}
+                  className={`${styles.collectionCard} ${collection.toneClassName}`}
+                >
+                  <div className={styles.collectionTop}>
+                    <span className={styles.collectionEyebrow}>{collection.eyebrow}</span>
+                    <span className={styles.collectionMeta}>{collection.meta}</span>
+                  </div>
+                  <div className={styles.collectionArtwork} aria-hidden="true" />
+                  <div className={styles.collectionBody}>
+                    <div className={styles.collectionTitle}>{collection.title}</div>
+                    <div className={styles.collectionDescription}>{collection.description}</div>
+                  </div>
+                  <span className={styles.collectionAction}>
+                    {collection.actionLabel}
+                    <ArrowRight size={16} />
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
 
           <section className={styles.metricGrid}>
-            <article className={styles.metricCard}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedInsight("count")
+                setView("overview")
+              }}
+              className={`${styles.metricCard} ${styles.metricCardButton} ${selectedInsight === "count" && activeView === "overview" ? styles.metricCardActive : ""}`}
+            >
               <div className={styles.metricHeader}>
                 <span className={styles.metricLabel}>Dataset Count</span>
                 <span className={styles.metricStatusGreen}>LIVE</span>
@@ -415,9 +619,16 @@ export default function Home() {
               <div className={styles.metricValue}>{registryBlobs.length}</div>
               <div className={styles.metricSubtext}>Registered blobs in your connected Shelby namespace.</div>
               <Sparkline values={sizeSeries} color="#2fb14f" />
-            </article>
+            </button>
 
-            <article className={styles.metricCard}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedInsight("storage")
+                setView("overview")
+              }}
+              className={`${styles.metricCard} ${styles.metricCardButton} ${selectedInsight === "storage" && activeView === "overview" ? styles.metricCardActive : ""}`}
+            >
               <div className={styles.metricHeader}>
                 <span className={styles.metricLabel}>Storage Reserved</span>
                 <span className={styles.metricStatusPurple}>MB</span>
@@ -425,9 +636,16 @@ export default function Home() {
               <div className={styles.metricValue}>{formatFileSize(totalBytes)}</div>
               <div className={styles.metricSubtext}>Live size of all active datasets in the registry.</div>
               <Sparkline values={searchSeries} color="#df6ea9" />
-            </article>
+            </button>
 
-            <article className={styles.metricCard}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedInsight("written")
+                setView("overview")
+              }}
+              className={`${styles.metricCard} ${styles.metricCardButton} ${selectedInsight === "written" && activeView === "overview" ? styles.metricCardActive : ""}`}
+            >
               <div className={styles.metricHeader}>
                 <span className={styles.metricLabel}>Written Datasets</span>
                 <span className={styles.metricStatusGreen}>ACK</span>
@@ -435,9 +653,16 @@ export default function Home() {
               <div className={styles.metricValue}>{writtenCount}</div>
               <div className={styles.metricSubtext}>Datasets fully acknowledged by Shelby storage providers.</div>
               <Sparkline values={writtenSeries} color="#2fb14f" />
-            </article>
+            </button>
 
-            <article className={styles.metricCard}>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedInsight("expiring")
+                setView("overview")
+              }}
+              className={`${styles.metricCard} ${styles.metricCardButton} ${selectedInsight === "expiring" && activeView === "overview" ? styles.metricCardActive : ""}`}
+            >
               <div className={styles.metricHeader}>
                 <span className={styles.metricLabel}>Expiring Soon</span>
                 <span className={styles.metricStatusAmber}>7D</span>
@@ -445,11 +670,77 @@ export default function Home() {
               <div className={styles.metricValue}>{expiringSoonCount}</div>
               <div className={styles.metricSubtext}>{uniqueOwners} owner{uniqueOwners === 1 ? "" : "s"} currently represented.</div>
               <Sparkline values={expirySeries} color="#da7b10" />
-            </article>
+            </button>
           </section>
 
-          <section className={styles.topGrid}>
-            <article id="search" className={`${styles.panel} ${styles.panelSearch}`}>
+          <section className={styles.workspaceBar}>
+            <p className={styles.workspaceLabel}>Focused workspace</p>
+            <div className={styles.workspaceTabs}>
+              {primaryTabs.map((tab) => (
+                <button
+                  key={`workspace-${tab.view}`}
+                  type="button"
+                  onClick={() => setView(tab.view)}
+                  className={`${styles.workspaceTab} ${activeView === tab.view ? styles.workspaceTabActive : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {activeView === "overview" ? (
+            <section className={styles.focusPanel}>
+              <article className={styles.focusCard}>
+                <p className={styles.panelKicker}>Selected Insight</p>
+                <h2 className={styles.panelTitle}>{selectedInsightContent[selectedInsight].title}</h2>
+                <div className={styles.focusValue}>{selectedInsightContent[selectedInsight].value}</div>
+                <p className={styles.focusCopy}>{selectedInsightContent[selectedInsight].summary}</p>
+                <p className={styles.focusHelper}>{selectedInsightContent[selectedInsight].helper}</p>
+              </article>
+
+              <article className={styles.focusCard}>
+                <p className={styles.panelKicker}>Quick Start</p>
+                <h2 className={styles.panelTitle}>How to use this dashboard</h2>
+                <div className={styles.stepsList}>
+                  <button type="button" className={styles.stepItem} onClick={() => setView("upload")}>
+                    <span className={styles.stepNumber}>1</span>
+                    <span className={styles.stepText}>Upload your file first.</span>
+                  </button>
+                  <button type="button" className={styles.stepItem} onClick={() => setView("registry")}>
+                    <span className={styles.stepNumber}>2</span>
+                    <span className={styles.stepText}>Open Registry to choose one dataset.</span>
+                  </button>
+                  <button type="button" className={styles.stepItem} onClick={() => setView("details")}>
+                    <span className={styles.stepNumber}>3</span>
+                    <span className={styles.stepText}>Use Details to inspect and monetize only that item.</span>
+                  </button>
+                </div>
+              </article>
+
+              <article className={styles.focusCard}>
+                <p className={styles.panelKicker}>Current Selection</p>
+                <h2 className={styles.panelTitle}>Dataset preview</h2>
+                {selectedDataset ? (
+                  <div className={styles.previewCard}>
+                    <div className={styles.previewName}>{selectedDataset.name}</div>
+                    <div className={styles.previewMeta}>
+                      {shortenValue(selectedDataset.owner, 8, 6)} • {formatFileSize(selectedDataset.sizeBytes)} • {selectedDataset.status}
+                    </div>
+                    <button type="button" className={styles.linkButton} onClick={() => setView("details")}>
+                      Open selected dataset
+                    </button>
+                  </div>
+                ) : (
+                  <div className={styles.emptyState}>Choose a dataset from Search or Registry to keep the interface focused.</div>
+                )}
+              </article>
+            </section>
+          ) : null}
+
+          {activeView === "search" ? (
+            <section className={styles.workspacePanelWrap}>
+              <article id="search" className={styles.panel}>
               <div className={styles.panelHeader}>
                 <div>
                   <p className={styles.panelKicker}>Quick Search</p>
@@ -501,7 +792,10 @@ export default function Home() {
                       <button
                         key={getBlobKey(reference)}
                         className={`${styles.resultRow} ${isActive ? styles.resultRowActive : ""}`}
-                        onClick={() => setSelectedBlobReference(reference)}
+                        onClick={() => {
+                          setSelectedBlobReference(reference)
+                          setView("details")
+                        }}
                       >
                         <div>
                           <div className={styles.resultName}>{blob.blobNameSuffix}</div>
@@ -520,8 +814,12 @@ export default function Home() {
                 </div>
               )}
             </article>
+            </section>
+          ) : null}
 
-            <article id="dataset-details" className={`${styles.panel} ${styles.panelDetails}`}>
+          {activeView === "details" ? (
+            <section className={styles.detailStack}>
+              <article id="dataset-details" className={styles.panel}>
               <div className={styles.panelHeader}>
                 <div>
                   <p className={styles.panelKicker}>Ownership Detail</p>
@@ -589,36 +887,48 @@ export default function Home() {
                 </div>
               ) : null}
             </article>
+              <StoryProtocolPanel dataset={selectedDataset} aptosWalletAddress={hydratedOwner} />
+            </section>
+          ) : null}
 
-            <article id="upload-dataset" className={`${styles.panel} ${styles.panelUpload}`}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <p className={styles.panelKicker}>Upload</p>
-                  <h2 className={styles.panelTitle}>Register a new dataset</h2>
+          {activeView === "upload" ? (
+            <section className={styles.workspacePanelWrap}>
+              <article id="upload-dataset" className={styles.panel}>
+                <div className={styles.panelHeader}>
+                  <div>
+                    <p className={styles.panelKicker}>Upload</p>
+                    <h2 className={styles.panelTitle}>Register a new dataset</h2>
+                  </div>
                 </div>
-              </div>
 
-              <UploadDataset
-                onUpload={async () => {
-                  const refreshed = await refetch()
-                  const latestBlob = [...(refreshed.data ?? [])]
-                    .filter((blob) => !blob.isDeleted)
-                    .sort((left, right) => right.creationMicros - left.creationMicros)[0]
+                <div className={styles.helpCard}>
+                  Upload one file at a time. After upload, open Registry or Details to inspect that specific dataset clearly.
+                </div>
 
-                  if (latestBlob) {
-                    setSelectedBlobReference(getBlobReference(latestBlob))
-                  }
-                }}
-              />
-            </article>
-          </section>
+                <UploadDataset
+                  onUpload={async () => {
+                    const refreshed = await refetch()
+                    const latestBlob = [...(refreshed.data ?? [])]
+                      .filter((blob) => !blob.isDeleted)
+                      .sort((left, right) => right.creationMicros - left.creationMicros)[0]
 
-          <section className={styles.bottomGrid}>
-            <article id="dataset-registry" className={`${styles.panel} ${styles.registryPanel}`}>
+                    if (latestBlob) {
+                      setSelectedBlobReference(getBlobReference(latestBlob))
+                      setView("details")
+                    }
+                  }}
+                />
+              </article>
+            </section>
+          ) : null}
+
+          {activeView === "registry" ? (
+            <section className={styles.workspacePanelWrap}>
+              <article id="dataset-registry" className={styles.panel}>
               <div className={styles.panelHeader}>
                 <div>
                   <p className={styles.panelKicker}>Dataset Registry</p>
-                  <h2 className={styles.panelTitle}>Live Shelby records</h2>
+                  <h2 className={styles.panelTitle}>Choose one dataset to inspect</h2>
                 </div>
                 <button
                   onClick={() => {
@@ -630,63 +940,74 @@ export default function Home() {
                 </button>
               </div>
 
-              {!owner ? <p className={styles.emptyState}>Connect your wallet to load the live registry.</p> : null}
-              {owner && isLoading ? <p className={styles.emptyState}>Loading registry...</p> : null}
+              {!hydratedOwner ? <p className={styles.emptyState}>Connect your wallet to load the live registry.</p> : null}
+              {hydratedOwner && isLoading ? <p className={styles.emptyState}>Loading registry...</p> : null}
               {accountBlobsError ? (
                 <p className={styles.errorMessage}>
                   {accountBlobsError instanceof Error ? accountBlobsError.message : "Failed to load account blobs"}
                 </p>
               ) : null}
-              {owner && !isLoading && !accountBlobsError && registryBlobs.length === 0 ? (
+              {hydratedOwner && !isLoading && !accountBlobsError && registryBlobs.length === 0 ? (
                 <p className={styles.emptyState}>No registered datasets yet.</p>
               ) : null}
 
               {registryBlobs.length > 0 ? (
-                <div className={styles.tableWrap}>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Owner</th>
-                        <th>Status</th>
-                        <th>Size</th>
-                        <th>Created</th>
-                        <th>Expires</th>
-                      </tr>
-                    </thead>
+                <div className={styles.registryList}>
+                  {registryBlobs.map((blob) => {
+                    const reference = getBlobReference(blob)
+                    const isActive = selectedBlobReference
+                      ? getBlobKey(selectedBlobReference) === getBlobKey(reference)
+                      : false
 
-                    <tbody>
-                      {registryBlobs.map((blob) => {
-                        const reference = getBlobReference(blob)
-                        const isActive = selectedBlobReference
-                          ? getBlobKey(selectedBlobReference) === getBlobKey(reference)
-                          : false
-
-                        return (
-                          <tr
-                            key={getBlobKey(reference)}
-                            className={isActive ? styles.tableRowActive : undefined}
-                            onClick={() => setSelectedBlobReference(reference)}
-                          >
-                            <td>{blob.blobNameSuffix}</td>
-                            <td>{shortenValue(blob.owner.toString(), 8, 6)}</td>
-                            <td>{getBlobStatus(blob)}</td>
-                            <td>{formatFileSize(blob.size)}</td>
-                            <td>{formatMicrosTimestamp(blob.creationMicros)}</td>
-                            <td>{formatMicrosTimestamp(blob.expirationMicros)}</td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                    return (
+                      <button
+                        type="button"
+                        key={getBlobKey(reference)}
+                        className={`${styles.registryItem} ${isActive ? styles.registryItemActive : ""}`}
+                        onClick={() => {
+                          setSelectedBlobReference(reference)
+                          setView("details")
+                        }}
+                      >
+                        <div className={styles.registryMain}>
+                          <div className={styles.resultName}>{blob.blobNameSuffix}</div>
+                          <div className={styles.resultMeta}>
+                            {shortenValue(blob.owner.toString(), 8, 6)} • {formatFileSize(blob.size)}
+                          </div>
+                        </div>
+                        <div className={styles.registrySide}>
+                          <span className={styles.rowBadge}>{getBlobStatus(blob)}</span>
+                          <span className={styles.registryDate}>Created {formatMicrosTimestamp(blob.creationMicros)}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               ) : null}
             </article>
+            </section>
+          ) : null}
 
-            <div id="activity" className={styles.activityPanel}>
+          {activeView === "activity" ? (
+            <section className={styles.workspacePanelWrap}>
+              <div id="activity" className={styles.activityPanel}>
               <WalletTransactions />
+              </div>
+            </section>
+          ) : null}
+
+          <footer className={styles.pageFooter}>
+            <div className={styles.footerLinks}>
+              <a href="https://docs.shelby.xyz" target="_blank" rel="noreferrer" className={styles.footerLink}>Docs</a>
+              <a href="https://explorer.shelby.xyz" target="_blank" rel="noreferrer" className={styles.footerLink}>Shelby Explorer</a>
+              <a href="https://www.story.foundation" target="_blank" rel="noreferrer" className={styles.footerLink}>Story Protocol</a>
             </div>
-          </section>
+
+            <div className={styles.footerStatus}>
+              <span className={styles.footerPill}>Shelby Storage</span>
+              <span className={styles.footerPill}>Story Licensing</span>
+            </div>
+          </footer>
         </div>
       </div>
     </div>
